@@ -23,13 +23,23 @@
     </div>
   </div>
 
-  <form class="search-form" id="searchForm">
-    <input class="search-input" id="searchInput" type="text"
-           placeholder="Symbol — AAPL, BTC-USD, EURUSD=X, SPY…" autocomplete="off" />
-    <button class="search-btn" type="submit">Search</button>
-  </form>
+  <div class="search-wrapper">
+    <form class="search-form" id="searchForm">
+      <input class="search-input" id="searchInput" type="text"
+             placeholder="Symbol — AAPL, BTC-USD, EURUSD=X, SPY…" autocomplete="off" />
+      <button class="search-btn" type="submit">Search</button>
+    </form>
+    <div id="searchDropdown" hidden></div>
+  </div>
 
   <div class="header-right">
+    <button class="icon-btn" id="portfolioBtn" title="Portfolio Builder">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+        <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+      </svg>
+      Portfolio
+    </button>
     <button class="icon-btn" id="learnBtn" title="Learning Center">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
@@ -240,7 +250,103 @@
   </div>
 </div>
 
+<!-- ── PORTFOLIO PANEL ── -->
+<aside class="portfolio-panel" id="portfolioPanel">
+  <div class="portfolio-header">
+    <div class="portfolio-title">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+        <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+      </svg>
+      Portfolio Builder
+    </div>
+    <button class="close-btn" id="closePortfolio">✕</button>
+  </div>
+
+  <div class="portfolio-form" id="portfolioForm">
+    <div class="pf-field">
+      <label>Capital to invest</label>
+      <div class="pf-capital-row">
+        <select id="pfCurrency">
+          <option value="USD">$ USD</option>
+          <option value="EUR">€ EUR</option>
+          <option value="GBP">£ GBP</option>
+        </select>
+        <input type="number" id="pfCapital" value="10000" min="100" step="100" />
+      </div>
+    </div>
+    <div class="pf-field">
+      <label>Number of positions: <span id="pfPositionsVal">8</span></label>
+      <input type="range" id="pfPositions" min="4" max="20" value="8" />
+    </div>
+    <div class="pf-field">
+      <label>Risk tolerance</label>
+      <div class="pf-radio-row">
+        <label class="pf-radio"><input type="radio" name="pfRisk" value="conservative"> Conservative</label>
+        <label class="pf-radio"><input type="radio" name="pfRisk" value="moderate" checked> Moderate</label>
+        <label class="pf-radio"><input type="radio" name="pfRisk" value="aggressive"> Aggressive</label>
+      </div>
+    </div>
+    <div class="pf-field">
+      <label>Investment focus</label>
+      <div class="pf-check-grid">
+        <label class="pf-check"><input type="checkbox" name="pfFocus" value="Growth"> Growth</label>
+        <label class="pf-check"><input type="checkbox" name="pfFocus" value="Dividend"> Dividend</label>
+        <label class="pf-check"><input type="checkbox" name="pfFocus" value="Value"> Value</label>
+        <label class="pf-check"><input type="checkbox" name="pfFocus" value="Momentum"> Momentum</label>
+      </div>
+    </div>
+    <div class="pf-field">
+      <label>Preferred sectors <span class="pf-optional">(optional)</span></label>
+      <div class="pf-check-grid">
+        <label class="pf-check"><input type="checkbox" name="pfSector" value="Technology"> Technology</label>
+        <label class="pf-check"><input type="checkbox" name="pfSector" value="Financials"> Financials</label>
+        <label class="pf-check"><input type="checkbox" name="pfSector" value="Healthcare"> Healthcare</label>
+        <label class="pf-check"><input type="checkbox" name="pfSector" value="Energy"> Energy</label>
+        <label class="pf-check"><input type="checkbox" name="pfSector" value="Consumer"> Consumer</label>
+        <label class="pf-check"><input type="checkbox" name="pfSector" value="Industrials"> Industrials</label>
+        <label class="pf-check"><input type="checkbox" name="pfSector" value="Real Estate"> Real Estate</label>
+        <label class="pf-check"><input type="checkbox" name="pfSector" value="Utilities"> Utilities</label>
+      </div>
+    </div>
+    <div class="pf-field">
+      <label>Geographic focus</label>
+      <div class="pf-radio-row">
+        <label class="pf-radio"><input type="radio" name="pfGeo" value="US Only"> US Only</label>
+        <label class="pf-radio"><input type="radio" name="pfGeo" value="Global" checked> Global</label>
+        <label class="pf-radio"><input type="radio" name="pfGeo" value="Europe"> Europe</label>
+        <label class="pf-radio"><input type="radio" name="pfGeo" value="Mixed"> Mixed</label>
+      </div>
+    </div>
+    <button class="pf-build-btn" id="pfBuildBtn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      Build Portfolio
+    </button>
+  </div>
+
+  <div class="portfolio-results" id="portfolioResults" hidden>
+    <div class="pf-results-header">
+      <button class="icon-btn" id="pfBackBtn">← Back</button>
+      <span id="pfResultsTitle">Your Portfolio</span>
+      <div class="pf-results-actions">
+        <button class="icon-btn" id="pfRegenerateBtn" title="Regenerate">↻</button>
+        <button class="icon-btn" id="pfExportBtn">⬇ Export</button>
+      </div>
+    </div>
+    <div class="pf-results-scroll">
+      <div class="pf-chart-wrap">
+        <canvas id="portfolioChart"></canvas>
+      </div>
+      <div class="pf-holdings" id="pfHoldings"></div>
+      <div class="pf-thesis" id="pfThesis"></div>
+    </div>
+  </div>
+</aside>
+
 <script src="https://s3.tradingview.com/tv.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

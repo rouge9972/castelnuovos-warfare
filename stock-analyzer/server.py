@@ -293,6 +293,101 @@ Return this exact JSON structure (all fields required):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/search")
+def search():
+    q = request.args.get("q", "").strip()
+    if not q:
+        return jsonify([])
+    try:
+        results = yf.Search(q, max_results=8).quotes or []
+        items = []
+        for r in results:
+            sym = r.get("symbol") or r.get("Symbol", "")
+            if not sym:
+                continue
+            items.append({
+                "symbol": sym,
+                "name": r.get("longname") or r.get("shortname") or r.get("longName") or r.get("shortName") or sym,
+                "asset_type": r.get("quoteType") or r.get("typeDisp") or "",
+                "exchange": r.get("exchDisp") or r.get("exchange") or "",
+            })
+        return jsonify(items)
+    except Exception:
+        return jsonify([])
+
+
+@app.route("/api/portfolio", methods=["POST"])
+def portfolio():
+    try:
+        data = request.get_json()
+        capital = data.get("capital", 10000)
+        positions = data.get("positions", 8)
+        risk = data.get("risk", "moderate")
+        focus = data.get("focus", [])
+        sectors = data.get("sectors", [])
+        geography = data.get("geography", "Global")
+        currency = data.get("currency", "USD")
+
+        focus_str = ", ".join(focus) if focus else "no specific focus (AI's discretion)"
+        sectors_str = ", ".join(sectors) if sectors else "no specific sectors (AI's discretion)"
+
+        prompt = f"""You are a senior portfolio manager. Build an optimal investment portfolio based on these client preferences and return a JSON object only — no markdown, no extra text.
+
+CLIENT PREFERENCES:
+- Capital to invest: {capital} {currency}
+- Number of positions: {positions}
+- Risk tolerance: {risk}
+- Investment focus: {focus_str}
+- Preferred sectors: {sectors_str}
+- Geographic focus: {geography}
+
+Return this exact JSON structure. Allocations must sum to exactly 100.0:
+{{
+  "holdings": [
+    {{
+      "symbol": "<ticker symbol, e.g. AAPL>",
+      "name": "<full company/fund name>",
+      "sector": "<sector>",
+      "asset_type": "<Stock | ETF | Bond | Crypto>",
+      "allocation_pct": <number, e.g. 15.0>,
+      "allocation_amount": <number, capital * allocation_pct / 100>,
+      "reason": "<1 sentence: why this holding fits the portfolio>"
+    }}
+  ],
+  "thesis": "<2-3 sentence overall portfolio rationale>",
+  "risk_assessment": "<1-2 sentence risk profile description>",
+  "expected_dividend_yield": "<e.g. 2.1%>",
+  "sector_breakdown": {{"Technology": 35, "Healthcare": 20}},
+  "diversification_note": "<1 sentence on diversification>"
+}}"""
+
+        completion = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            max_tokens=2000,
+            messages=[
+                {"role": "system", "content": "You are a senior portfolio manager. Always respond with valid JSON only — no markdown fences, no explanations outside the JSON. Allocation percentages must sum to exactly 100."},
+                {"role": "user", "content": prompt},
+            ],
+            response_format={"type": "json_object"},
+        )
+
+        raw = completion.choices[0].message.content.strip()
+        result = json.loads(raw)
+
+        # Normalise allocations to exactly 100
+        holdings = result.get("holdings", [])
+        total = sum(h.get("allocation_pct", 0) for h in holdings)
+        if total > 0:
+            for h in holdings:
+                h["allocation_pct"] = round(h["allocation_pct"] / total * 100, 2)
+                h["allocation_amount"] = round(float(capital) * h["allocation_pct"] / 100, 2)
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/report/<symbol>")
 def report(symbol):
     """Collect all data for a symbol and return a combined report object."""

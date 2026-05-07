@@ -217,6 +217,15 @@ const learnPanel = document.getElementById('learnPanel');
 const closeLearn = document.getElementById('closeLearn');
 const learnTabsNav = document.getElementById('learnTabsNav');
 const learnContent = document.getElementById('learnContent');
+const searchDropdown = document.getElementById('searchDropdown');
+const portfolioBtn = document.getElementById('portfolioBtn');
+const portfolioPanel = document.getElementById('portfolioPanel');
+const closePortfolio = document.getElementById('closePortfolio');
+const portfolioForm = document.getElementById('portfolioForm');
+const portfolioResults = document.getElementById('portfolioResults');
+const pfBuildBtn = document.getElementById('pfBuildBtn');
+const pfHoldings = document.getElementById('pfHoldings');
+const pfThesis = document.getElementById('pfThesis');
 
 /* ── Search ─────────────────────────────────────────────────────────────── */
 searchForm.addEventListener('submit', e => {
@@ -268,6 +277,68 @@ async function apiFetch(url, opts) {
     return r.ok ? r.json() : null;
   } catch { return null; }
 }
+
+/* ── Search Autocomplete ────────────────────────────────────────────────── */
+let _sdTimer = null;
+let _sdActive = -1;
+let _sdItems = [];
+
+searchInput.addEventListener('input', () => {
+  clearTimeout(_sdTimer);
+  const q = searchInput.value.trim();
+  if (!q) { searchDropdown.hidden = true; return; }
+  _sdTimer = setTimeout(() => fetchDropdown(q), 250);
+});
+
+async function fetchDropdown(q) {
+  const results = await apiFetch(`/api/search?q=${encodeURIComponent(q)}`);
+  if (!results || !results.length) { searchDropdown.hidden = true; return; }
+  _sdItems = results;
+  _sdActive = -1;
+  searchDropdown.innerHTML = results.map((r, i) => `
+    <div class="sd-item" data-idx="${i}">
+      <span class="sd-sym">${esc(r.symbol)}</span>
+      <span class="sd-name">${esc(r.name)}</span>
+      <span class="sd-type">${esc(r.asset_type || r.exchange || '')}</span>
+    </div>`).join('');
+  searchDropdown.hidden = false;
+
+  searchDropdown.querySelectorAll('.sd-item').forEach(item => {
+    item.addEventListener('mousedown', e => {
+      e.preventDefault();
+      selectDropdownItem(parseInt(item.dataset.idx));
+    });
+  });
+}
+
+function selectDropdownItem(idx) {
+  const r = _sdItems[idx];
+  if (!r) return;
+  searchInput.value = r.symbol;
+  searchDropdown.hidden = true;
+  loadSymbol(r.symbol);
+}
+
+function moveDropdown(dir) {
+  const items = searchDropdown.querySelectorAll('.sd-item');
+  if (!items.length) return;
+  items[_sdActive]?.classList.remove('active');
+  _sdActive = Math.max(-1, Math.min(items.length - 1, _sdActive + dir));
+  if (_sdActive >= 0) items[_sdActive].classList.add('active');
+}
+
+searchInput.addEventListener('keydown', e => {
+  if (searchDropdown.hidden) return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); moveDropdown(1); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); moveDropdown(-1); }
+  else if (e.key === 'Enter' && _sdActive >= 0) { e.preventDefault(); selectDropdownItem(_sdActive); }
+  else if (e.key === 'Escape') { searchDropdown.hidden = true; }
+});
+
+searchForm.addEventListener('submit', () => { searchDropdown.hidden = true; });
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search-wrapper')) searchDropdown.hidden = true;
+});
 
 /* ── Chart ──────────────────────────────────────────────────────────────── */
 function currentInterval() {
@@ -841,6 +912,201 @@ async function generateReport() {
     </div>`;
 }
 
+/* ── Portfolio Builder ──────────────────────────────────────────────────── */
+let pfChart = null;
+let pfCurrentData = null;
+let pfCurrentInputs = null;
+
+portfolioBtn.addEventListener('click', () => portfolioPanel.classList.toggle('open'));
+closePortfolio.addEventListener('click', () => portfolioPanel.classList.remove('open'));
+
+document.getElementById('pfPositions').addEventListener('input', function () {
+  document.getElementById('pfPositionsVal').textContent = this.value;
+});
+
+pfBuildBtn.addEventListener('click', () => buildPortfolio(false));
+document.getElementById('pfRegenerateBtn').addEventListener('click', () => buildPortfolio(true));
+document.getElementById('pfBackBtn').addEventListener('click', () => {
+  portfolioResults.hidden = true;
+  portfolioForm.hidden = false;
+});
+document.getElementById('pfExportBtn').addEventListener('click', exportPortfolioReport);
+
+async function buildPortfolio(regenerate) {
+  const inputs = (regenerate && pfCurrentInputs) ? pfCurrentInputs : collectPfInputs();
+  pfCurrentInputs = inputs;
+
+  portfolioForm.hidden = true;
+  portfolioResults.hidden = false;
+  pfHoldings.innerHTML = '<div class="loading-placeholder" style="padding:24px">Building your portfolio…</div>';
+  pfThesis.innerHTML = '';
+  if (pfChart) { pfChart.destroy(); pfChart = null; }
+
+  const result = await apiFetch('/api/portfolio', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(inputs),
+  });
+
+  if (!result || result.error) {
+    pfHoldings.innerHTML = `<p class="muted" style="padding:16px">Failed: ${esc((result && result.error) || 'unknown error')}</p>`;
+    return;
+  }
+
+  pfCurrentData = result;
+  renderPortfolioResults(result, inputs.capital, inputs.currency);
+}
+
+function collectPfInputs() {
+  return {
+    capital:    parseFloat(document.getElementById('pfCapital').value) || 10000,
+    positions:  parseInt(document.getElementById('pfPositions').value) || 8,
+    risk:       document.querySelector('input[name="pfRisk"]:checked')?.value || 'moderate',
+    focus:      [...document.querySelectorAll('input[name="pfFocus"]:checked')].map(i => i.value),
+    sectors:    [...document.querySelectorAll('input[name="pfSector"]:checked')].map(i => i.value),
+    geography:  document.querySelector('input[name="pfGeo"]:checked')?.value || 'Global',
+    currency:   document.getElementById('pfCurrency').value || 'USD',
+  };
+}
+
+const PF_COLORS = [
+  '#2962ff','#26a69a','#ef5350','#f59e0b','#a855f7','#ec4899',
+  '#0ea5e9','#84cc16','#f97316','#06b6d4','#d946ef','#14b8a6',
+];
+
+function renderPortfolioResults(data, capital, currency) {
+  const holdings = data.holdings || [];
+  const currSym = currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$';
+
+  // Doughnut chart
+  const canvas = document.getElementById('portfolioChart');
+  if (pfChart) pfChart.destroy();
+  pfChart = new Chart(canvas.getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: holdings.map(h => h.symbol),
+      datasets: [{
+        data: holdings.map(h => h.allocation_pct),
+        backgroundColor: PF_COLORS.slice(0, holdings.length),
+        borderColor: '#1a1d26',
+        borderWidth: 2,
+        hoverOffset: 8,
+      }],
+    },
+    options: {
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed.toFixed(1)}%` } },
+      },
+      animation: { duration: 400 },
+    },
+  });
+
+  // Holdings rows
+  pfHoldings.innerHTML = holdings.map((h, i) => `
+    <div class="pf-holding-row" data-idx="${i}">
+      <div class="pf-holding-sym" style="color:${PF_COLORS[i % PF_COLORS.length]}">${esc(h.symbol)}</div>
+      <div class="pf-holding-info">
+        <div class="pf-holding-name">${esc(h.name)}</div>
+        <div class="pf-holding-sector">${esc(h.sector || '')} · ${esc(h.asset_type || 'Stock')}</div>
+        <div class="pf-holding-reason">${esc(h.reason || '')}</div>
+        <input type="range" class="pf-slider" data-idx="${i}" min="0" max="50" step="0.5" value="${h.allocation_pct.toFixed(1)}">
+      </div>
+      <div class="pf-holding-right">
+        <div class="pf-holding-pct" id="pfpct-${i}">${h.allocation_pct.toFixed(1)}%</div>
+        <div class="pf-holding-amt" id="pfamt-${i}">${currSym}${Math.round(h.allocation_amount || 0).toLocaleString()}</div>
+      </div>
+    </div>`).join('');
+
+  pfHoldings.querySelectorAll('.pf-slider').forEach(slider => {
+    slider.addEventListener('input', () =>
+      onPfSliderChange(parseInt(slider.dataset.idx), parseFloat(slider.value), capital, currency));
+  });
+
+  // Thesis + sector breakdown
+  const sectors = data.sector_breakdown || {};
+  const sectorBars = Object.entries(sectors).map(([s, pct], i) => `
+    <div class="pf-sector-row">
+      <span class="pf-sector-label">${esc(s)}</span>
+      <div class="pf-sector-track"><div class="pf-sector-fill" style="width:${pct}%;background:${PF_COLORS[i % PF_COLORS.length]}"></div></div>
+      <span class="pf-sector-pct">${pct}%</span>
+    </div>`).join('');
+
+  pfThesis.innerHTML = `
+    ${data.thesis ? `<div class="pf-thesis-card"><h4>Portfolio Thesis</h4><p>${esc(data.thesis)}</p></div>` : ''}
+    ${data.risk_assessment ? `<div class="pf-thesis-card"><h4>Risk Assessment</h4><p>${esc(data.risk_assessment)}</p></div>` : ''}
+    ${sectorBars ? `<div class="pf-thesis-card"><h4>Sector Breakdown</h4>${sectorBars}</div>` : ''}
+    ${data.expected_dividend_yield ? `<div class="pf-thesis-card"><h4>Expected Dividend Yield</h4><p>${esc(data.expected_dividend_yield)}</p></div>` : ''}
+    ${data.diversification_note ? `<div class="pf-thesis-card"><h4>Diversification</h4><p>${esc(data.diversification_note)}</p></div>` : ''}`;
+}
+
+function onPfSliderChange(idx, newPct, capital, currency) {
+  const holdings = pfCurrentData.holdings;
+  const delta = newPct - holdings[idx].allocation_pct;
+  const othersTotal = holdings.reduce((s, h, i) => i !== idx ? s + h.allocation_pct : s, 0);
+
+  holdings[idx].allocation_pct = newPct;
+  holdings[idx].allocation_amount = capital * newPct / 100;
+
+  if (othersTotal > 0) {
+    holdings.forEach((h, i) => {
+      if (i !== idx) {
+        h.allocation_pct = Math.max(0, h.allocation_pct - delta * (h.allocation_pct / othersTotal));
+        h.allocation_amount = capital * h.allocation_pct / 100;
+      }
+    });
+  }
+
+  const currSym = currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$';
+  holdings.forEach((h, i) => {
+    const pEl = document.getElementById(`pfpct-${i}`);
+    const aEl = document.getElementById(`pfamt-${i}`);
+    if (pEl) pEl.textContent = h.allocation_pct.toFixed(1) + '%';
+    if (aEl) aEl.textContent = currSym + Math.round(h.allocation_amount || 0).toLocaleString();
+  });
+
+  if (pfChart) {
+    pfChart.data.datasets[0].data = holdings.map(h => h.allocation_pct);
+    pfChart.update('none');
+  }
+}
+
+function exportPortfolioReport() {
+  if (!pfCurrentData) return;
+  const data = pfCurrentData;
+  const inputs = pfCurrentInputs || {};
+  const currency = inputs.currency || 'USD';
+  const currSym = currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$';
+  const holdings = data.holdings || [];
+
+  reportTitle.textContent = 'AI Portfolio Report';
+  reportBody.innerHTML = `
+    <div class="report-section">
+      <h3>Portfolio Summary</h3>
+      <table class="report-table">
+        <tr><td>Capital</td><td>${currSym}${(inputs.capital || 0).toLocaleString()}</td></tr>
+        <tr><td>Positions</td><td>${inputs.positions}</td></tr>
+        <tr><td>Risk</td><td>${capitalize(inputs.risk || 'moderate')}</td></tr>
+        <tr><td>Geography</td><td>${esc(inputs.geography || 'Global')}</td></tr>
+        <tr><td>Expected Dividend Yield</td><td>${esc(data.expected_dividend_yield || 'N/A')}</td></tr>
+      </table>
+    </div>
+    <div class="report-section">
+      <h3>Holdings</h3>
+      <table class="report-table">
+        <tr style="font-size:10px;color:var(--muted)"><td>Symbol</td><td>Name / Sector</td><td style="text-align:right">%</td></tr>
+        ${holdings.map(h => `<tr>
+          <td style="font-weight:700;color:var(--accent-h)">${esc(h.symbol)}</td>
+          <td>${esc(h.name)}<br><span style="font-size:11px;color:var(--muted)">${esc(h.sector||'')} · ${esc(h.reason||'')}</span></td>
+          <td style="text-align:right;font-weight:700">${h.allocation_pct.toFixed(1)}%<br><span style="font-size:11px;color:var(--muted)">${currSym}${Math.round(h.allocation_amount||0).toLocaleString()}</span></td>
+        </tr>`).join('')}
+      </table>
+    </div>
+    ${data.thesis ? `<div class="report-section"><h3>Thesis</h3><p style="font-size:13px;line-height:1.7">${esc(data.thesis)}</p></div>` : ''}
+    ${data.risk_assessment ? `<div class="report-section"><h3>Risk Assessment</h3><p style="font-size:13px;line-height:1.7">${esc(data.risk_assessment)}</p></div>` : ''}`;
+  reportOverlay.hidden = false;
+}
+
 /* ── Helpers ────────────────────────────────────────────────────────────── */
 function fmt(v, currency = 'USD') {
   if (v == null) return 'N/A';
@@ -875,16 +1141,10 @@ function showTip(el) {
   tipUseful.textContent = entry.useful;
   metricTip.hidden = false;
 
-  const rect = el.getBoundingClientRect();
   const tipW = 320;
-  let left = rect.left;
-  let top = rect.bottom + 8;
-  if (left + tipW > window.innerWidth - 16) left = window.innerWidth - tipW - 16;
-  if (left < 16) left = 16;
-  const tipH = metricTip.offsetHeight || 260;
-  if (top + tipH > window.innerHeight - 16) top = rect.top - tipH - 8;
-  metricTip.style.left = left + 'px';
-  metricTip.style.top = top + 'px';
+  const tipH = metricTip.offsetHeight || 280;
+  metricTip.style.left = Math.max(16, (window.innerWidth - tipW) / 2) + 'px';
+  metricTip.style.top  = Math.max(16, (window.innerHeight - tipH) / 2) + 'px';
 }
 
 function hideTip() { metricTip.hidden = true; }
@@ -1314,6 +1574,8 @@ document.addEventListener('keydown', e => {
     hideTip();
     closeReportModal();
     learnPanel.classList.remove('open');
+    portfolioPanel.classList.remove('open');
+    searchDropdown.hidden = true;
   }
 });
 
