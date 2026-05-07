@@ -585,8 +585,10 @@ function pushAlert(sym, type, msg) {
 
 /* ── Report ─────────────────────────────────────────────────────────────── */
 reportBtn.addEventListener('click', generateReport);
-closeReport.addEventListener('click', () => { reportOverlay.hidden = true; });
-reportOverlay.addEventListener('click', e => { if (e.target === reportOverlay) reportOverlay.hidden = true; });
+function closeReportModal() { reportOverlay.hidden = true; }
+closeReport.addEventListener('click', closeReportModal);
+reportOverlay.addEventListener('click', e => { if (e.target === reportOverlay) closeReportModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !reportOverlay.hidden) closeReportModal(); });
 
 async function generateReport() {
   if (!currentSymbol) return;

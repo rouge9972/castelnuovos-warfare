@@ -6,14 +6,14 @@ from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
 import yfinance as yf
-from anthropic import Anthropic
+from groq import Groq
 from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
 
 load_dotenv()
 
 app = Flask(__name__)
-client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+client = Groq(api_key=os.environ.get("GROQ_API_KEY", ""))
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -275,19 +275,17 @@ Return this exact JSON structure (all fields required):
   }}
 }}"""
 
-        message = client.messages.create(
-            model="claude-sonnet-4-6",
+        completion = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
             max_tokens=1500,
-            system="You are a senior quantitative analyst. Always respond with valid JSON only — no markdown fences, no explanations outside the JSON.",
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "system", "content": "You are a senior quantitative analyst. Always respond with valid JSON only — no markdown fences, no explanations outside the JSON."},
+                {"role": "user", "content": prompt},
+            ],
+            response_format={"type": "json_object"},
         )
 
-        raw = message.content[0].text.strip()
-        # Strip markdown fences if the model added them anyway
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
+        raw = completion.choices[0].message.content.strip()
         result = json.loads(raw)
         return jsonify(result)
 
