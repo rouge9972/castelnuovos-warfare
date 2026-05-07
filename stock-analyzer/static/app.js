@@ -924,6 +924,10 @@ document.getElementById('pfPositions').addEventListener('input', function () {
   document.getElementById('pfPositionsVal').textContent = this.value;
 });
 
+document.getElementById('pfFreeMode').addEventListener('change', function () {
+  document.getElementById('pfFilters').classList.toggle('disabled', this.checked);
+});
+
 pfBuildBtn.addEventListener('click', () => buildPortfolio(false));
 document.getElementById('pfRegenerateBtn').addEventListener('click', () => buildPortfolio(true));
 document.getElementById('pfBackBtn').addEventListener('click', () => {
@@ -958,14 +962,16 @@ async function buildPortfolio(regenerate) {
 }
 
 function collectPfInputs() {
+  const free = document.getElementById('pfFreeMode').checked;
   return {
     capital:    parseFloat(document.getElementById('pfCapital').value) || 10000,
     positions:  parseInt(document.getElementById('pfPositions').value) || 8,
-    risk:       document.querySelector('input[name="pfRisk"]:checked')?.value || 'moderate',
-    focus:      [...document.querySelectorAll('input[name="pfFocus"]:checked')].map(i => i.value),
-    sectors:    [...document.querySelectorAll('input[name="pfSector"]:checked')].map(i => i.value),
-    geography:  document.querySelector('input[name="pfGeo"]:checked')?.value || 'Global',
+    risk:       free ? '' : (document.querySelector('input[name="pfRisk"]:checked')?.value || 'moderate'),
+    focus:      free ? [] : [...document.querySelectorAll('input[name="pfFocus"]:checked')].map(i => i.value),
+    sectors:    free ? [] : [...document.querySelectorAll('input[name="pfSector"]:checked')].map(i => i.value),
+    geography:  free ? '' : (document.querySelector('input[name="pfGeo"]:checked')?.value || 'Global'),
     currency:   document.getElementById('pfCurrency').value || 'USD',
+    free_mode:  free,
   };
 }
 

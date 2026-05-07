@@ -322,24 +322,28 @@ def portfolio():
         data = request.get_json()
         capital = data.get("capital", 10000)
         positions = data.get("positions", 8)
-        risk = data.get("risk", "moderate")
+        risk = data.get("risk", "") or ""
         focus = data.get("focus", [])
         sectors = data.get("sectors", [])
-        geography = data.get("geography", "Global")
+        geography = data.get("geography", "") or ""
         currency = data.get("currency", "USD")
+        free_mode = data.get("free_mode", False)
 
-        focus_str = ", ".join(focus) if focus else "no specific focus (AI's discretion)"
-        sectors_str = ", ".join(sectors) if sectors else "no specific sectors (AI's discretion)"
+        risk_str = risk if risk else "AI's discretion — choose the optimal risk profile"
+        geo_str = geography if geography else "AI's discretion — choose the best geographic mix"
+        focus_str = ", ".join(focus) if focus else "AI's discretion"
+        sectors_str = ", ".join(sectors) if sectors else "AI's discretion"
 
         prompt = f"""You are a senior portfolio manager. Build an optimal investment portfolio based on these client preferences and return a JSON object only — no markdown, no extra text.
 
 CLIENT PREFERENCES:
 - Capital to invest: {capital} {currency}
 - Number of positions: {positions}
-- Risk tolerance: {risk}
+- Risk tolerance: {risk_str}
 - Investment focus: {focus_str}
 - Preferred sectors: {sectors_str}
-- Geographic focus: {geography}
+- Geographic focus: {geo_str}
+- Full AI discretion mode: {"YES — ignore all preference constraints and build the best portfolio you see fit" if free_mode else "NO"}
 
 Return this exact JSON structure. Allocations must sum to exactly 100.0:
 {{

@@ -279,6 +279,17 @@
       <label>Number of positions: <span id="pfPositionsVal">8</span></label>
       <input type="range" id="pfPositions" min="4" max="20" value="8" />
     </div>
+    <label class="pf-free-label" for="pfFreeMode">
+      <div class="pf-toggle-switch">
+        <input type="checkbox" id="pfFreeMode">
+        <span class="pf-toggle-track"></span>
+      </div>
+      <div class="pf-toggle-body">
+        <div class="pf-toggle-title">Let AI decide everything</div>
+        <div class="pf-toggle-desc">Skip all filters — AI picks the optimal mix freely</div>
+      </div>
+    </label>
+    <div id="pfFilters">
     <div class="pf-field">
       <label>Risk tolerance</label>
       <div class="pf-radio-row">
@@ -318,6 +329,7 @@
         <label class="pf-radio"><input type="radio" name="pfGeo" value="Mixed"> Mixed</label>
       </div>
     </div>
+    </div><!-- /pfFilters -->
     <button class="pf-build-btn" id="pfBuildBtn">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
