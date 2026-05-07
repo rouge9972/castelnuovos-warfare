@@ -321,29 +321,29 @@ def portfolio():
     try:
         data = request.get_json()
         capital = data.get("capital", 10000)
-        positions = data.get("positions", 8)
-        risk = data.get("risk", "") or ""
+        positions = data.get("positions")  # None means AI decides
+        risk = (data.get("risk") or "").strip()
         focus = data.get("focus", [])
         sectors = data.get("sectors", [])
-        geography = data.get("geography", "") or ""
+        geography = (data.get("geography") or "").strip()
         currency = data.get("currency", "USD")
-        free_mode = data.get("free_mode", False)
 
-        risk_str = risk if risk else "AI's discretion — choose the optimal risk profile"
-        geo_str = geography if geography else "AI's discretion — choose the best geographic mix"
+        positions_str = str(int(positions)) if positions is not None else "AI's discretion"
+        risk_str = risk if risk else "AI's discretion"
+        geo_str = geography if geography else "AI's discretion"
         focus_str = ", ".join(focus) if focus else "AI's discretion"
         sectors_str = ", ".join(sectors) if sectors else "AI's discretion"
 
         prompt = f"""You are a senior portfolio manager. Build an optimal investment portfolio based on these client preferences and return a JSON object only — no markdown, no extra text.
+Any preference marked "AI's discretion" means the client has no constraint — use your professional judgement for that dimension.
 
 CLIENT PREFERENCES:
 - Capital to invest: {capital} {currency}
-- Number of positions: {positions}
+- Number of positions: {positions_str}
 - Risk tolerance: {risk_str}
 - Investment focus: {focus_str}
 - Preferred sectors: {sectors_str}
 - Geographic focus: {geo_str}
-- Full AI discretion mode: {"YES — ignore all preference constraints and build the best portfolio you see fit" if free_mode else "NO"}
 
 Return this exact JSON structure. Allocations must sum to exactly 100.0:
 {{

@@ -920,13 +920,17 @@ let pfCurrentInputs = null;
 portfolioBtn.addEventListener('click', () => portfolioPanel.classList.toggle('open'));
 closePortfolio.addEventListener('click', () => portfolioPanel.classList.remove('open'));
 
-document.getElementById('pfPositions').addEventListener('input', function () {
+const pfPosSlider = document.getElementById('pfPositions');
+const pfPosAI = document.getElementById('pfPosAI');
+
+pfPosSlider.addEventListener('input', function () {
   document.getElementById('pfPositionsVal').textContent = this.value;
 });
 
-document.getElementById('pfFreeMode').addEventListener('change', function () {
-  document.getElementById('pfFilters').classList.toggle('disabled', this.checked);
+pfPosAI.addEventListener('change', function () {
+  pfPosSlider.classList.toggle('pf-ctrl-disabled', this.checked);
 });
+pfPosSlider.classList.toggle('pf-ctrl-disabled', pfPosAI.checked);
 
 pfBuildBtn.addEventListener('click', () => buildPortfolio(false));
 document.getElementById('pfRegenerateBtn').addEventListener('click', () => buildPortfolio(true));
@@ -962,16 +966,14 @@ async function buildPortfolio(regenerate) {
 }
 
 function collectPfInputs() {
-  const free = document.getElementById('pfFreeMode').checked;
   return {
-    capital:    parseFloat(document.getElementById('pfCapital').value) || 10000,
-    positions:  parseInt(document.getElementById('pfPositions').value) || 8,
-    risk:       free ? '' : (document.querySelector('input[name="pfRisk"]:checked')?.value || 'moderate'),
-    focus:      free ? [] : [...document.querySelectorAll('input[name="pfFocus"]:checked')].map(i => i.value),
-    sectors:    free ? [] : [...document.querySelectorAll('input[name="pfSector"]:checked')].map(i => i.value),
-    geography:  free ? '' : (document.querySelector('input[name="pfGeo"]:checked')?.value || 'Global'),
-    currency:   document.getElementById('pfCurrency').value || 'USD',
-    free_mode:  free,
+    capital:   parseFloat(document.getElementById('pfCapital').value) || 10000,
+    positions: pfPosAI.checked ? null : (parseInt(pfPosSlider.value) || 8),
+    risk:      document.querySelector('input[name="pfRisk"]:checked')?.value || '',
+    focus:     [...document.querySelectorAll('input[name="pfFocus"]:checked')].map(i => i.value),
+    sectors:   [...document.querySelectorAll('input[name="pfSector"]:checked')].map(i => i.value),
+    geography: document.querySelector('input[name="pfGeo"]:checked')?.value || '',
+    currency:  document.getElementById('pfCurrency').value || 'USD',
   };
 }
 
